@@ -5,6 +5,7 @@ const response = require('../utils/responseHandler');
 const otpGenerater = require('../utils/otpGenerater');
 const generateToken = require('../utils/generateToken');
 const { uploadFileToCloudinary } = require('../config/cloudinaryConfig');
+const Conversation =require('../models/Conversation');
 
 
 
@@ -130,4 +131,61 @@ const updateProfile = async (req, res) => {
     }
 }
 
-module.exports = { sendOTP, verifyOTP,updateProfile };
+const checkAuthenticated = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        if (!userId) {
+            return response({ res, statusCode: 401, message: 'Unauthorized! Please login before accessing our app' });
+        }
+        const user = await User.findById(userId);
+        if (!user) {
+            return response({ res, statusCode: 404, message: 'User not found' });
+        }
+        return response({ res, statusCode: 200, message: 'User retrieved successfully', data: { user } });
+    }
+    catch (error) {
+        console.error(error);
+        return response({ res, statusCode: 500, message: 'Internal server error' });
+    }
+}
+
+const logout = (req, res) => {
+    try {
+        res.cookie("authToken", "", { expires: new Date(0) });
+        return response({ res, statusCode: 200, message: 'Logout successful' });
+    }
+    catch (error) {
+        console.error(error);
+        return response({ res, statusCode: 500, message: 'Internal server error' });
+    }
+}
+
+const getAllUsers = async (req, res) => {
+    const loggedInUser = req.user.id;
+    try {
+        const users = await User.find({ _id: { $ne: loggedInUser } }).select(
+            "username profilePicture lastSeen isOnline about phoneNumber phoneSuffix"
+        ).lean();
+
+        const userWithConversation = await Promise.all(
+            users.map(async (user) => {
+                const conversation = await Conversation.findOne({
+                    participants: { $all: [loggedInUser, user?._id] }
+                }).populate({
+                    path: "lastMessage",
+                    select: ' content Created sender receiver'
+                }).lean();
+                return {
+                    ...user,
+                    conversation: conversation || null
+                };
+            })
+        );
+        return response({ res, statusCode: 200, message: 'Users retrieved successfully', data: { users: userWithConversation } });
+    } catch (error) {
+        console.error(error);
+        return response({ res, statusCode: 500, message: 'Internal server error' });
+    }
+}
+
+module.exports = { sendOTP, verifyOTP,updateProfile,logout,checkAuthenticated,getAllUsers };
