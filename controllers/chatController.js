@@ -5,8 +5,18 @@ const Message = require("../models/Message");
 
 exports.sendMessage = async (req, res) => {
   try {
-    const { senderId, receiverId, content, messageStatus } = req.body;
+    const { receiverId, content, messageStatus } = req.body;
+    const senderId = req.user.id;
     const file = req.file;
+
+    if (!receiverId) {
+      return response({
+        res,
+        statusCode: 400,
+        message: "Receiver ID is required",
+      });
+    }
+
     const participants = [senderId, receiverId].sort();
 
     let conversation = await Conversation.findOne({
@@ -70,6 +80,15 @@ exports.sendMessage = async (req, res) => {
     const populatedMessage = await Message.findById(message?._id)
       .populate("sender", "username profilePicture")
       .populate("receiver", "username profilePicture");
+
+      if(req.io && req.socketUserMap) {
+            const receiverSocketId = req.socketUserMap.get(receiverId);
+            if(receiverSocketId) {
+                req.io.to(receiverSocketId).emit("receiveMessage", { message: populatedMessage });
+                message.messageStatus = "delivered";
+                await message.save();
+            }
+        }
 
     return response({
       res,
@@ -156,6 +175,21 @@ exports.markMessageAsRead = async (req, res) => {
         messageStatus: "read"
       }
     )
+     if(req.io && req.socketUserMap) {
+      for(const message of messages) {
+        const senderSocketId = req.socketUserMap.get(message.sender.toString());
+        if(senderSocketId) {
+          const updatedMessage = {
+            _id: message._id,
+            messageStatus: "read"
+          }
+          req.io.to(senderSocketId).emit("messageRead", { message: updatedMessage });
+          await Message.save();
+        }
+      }
+    }
+
+
     return response({ res, statusCode: 200, message: 'Messages marked as read successfully' });
 
   }
@@ -176,7 +210,15 @@ exports.deleteMessage = async (req, res) => {
     if (message.sender.toString() !== userId) {
       return response({ res, statusCode: 403, message: 'You are not the sender of this message' });
     }
-    await Message.findByIdAndDelete(messageId);
+    await Message.deleteOne();
+    if(req.io && req.socketUserMap) {
+      const receiverSocketId = req.socketUserMap.get(message.receiver.toString());
+      if(receiverSocketId) {
+        req.io.to(receiverSocketId).emit("messageDeleted", { messageId });
+      }
+      
+    }
+
     return response({ res, statusCode: 200, message: 'Message deleted successfully' });
   }
   catch (error) {

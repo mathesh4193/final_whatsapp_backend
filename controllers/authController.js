@@ -86,7 +86,7 @@ const verifyOTP = async (req, res) => {
             user.isVerified = true;
             await user.save();
         }
-        const token=generateToken(user?._id);
+        const token=generateToken(user);
         res.cookie('authToken', token, {
             httpOnly: true,
             maxAge: 365 * 24 * 60 * 60 * 1000, // 1 year
