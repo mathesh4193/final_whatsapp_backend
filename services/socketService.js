@@ -8,8 +8,14 @@ const typingUsers = new Map();
 const socketService = (server) => {
     const io = new Server(server, {
         cors: {
-            origin: process.env.CLIENT_URL || "http://localhost:3000",
+            origin: [
+                process.env.CLIENT_URL,
+                "http://localhost:3000",
+                "http://localhost:3001",
+                "http://localhost:3002",
+            ],
             methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            credentials: true,
         },
         pingTimeout: 6000,
     });

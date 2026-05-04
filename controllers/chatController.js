@@ -175,8 +175,11 @@ exports.markMessageAsRead = async (req, res) => {
         messageStatus: "read"
       }
     )
+
+    const updatedMessages = await Message.find({ _id: { $in: messageIds } });
+
      if(req.io && req.socketUserMap) {
-      for(const message of messages) {
+      for(const message of updatedMessages) {
         const senderSocketId = req.socketUserMap.get(message.sender.toString());
         if(senderSocketId) {
           const updatedMessage = {
@@ -184,7 +187,6 @@ exports.markMessageAsRead = async (req, res) => {
             messageStatus: "read"
           }
           req.io.to(senderSocketId).emit("messageRead", { message: updatedMessage });
-          await Message.save();
         }
       }
     }

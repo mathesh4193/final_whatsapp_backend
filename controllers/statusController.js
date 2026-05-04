@@ -59,8 +59,9 @@ exports.createStatus = async (req, res) => {
 
             if(req.io && req.socketUserMap) {
                 for(const[connectionId, socketId] of req.socketUserMap) {
-                    if(connectionUserId !== userId) {
-                        req.io.to(socketId).emit("newStatus", { status: populatedStatus });
+                    if(connectionId !== userId) {
+                        // Fixed: Match frontend event name and data structure
+                        req.io.to(socketId).emit("new_status", populatedStatus);
                     }
                 }                       
             }
@@ -68,7 +69,7 @@ exports.createStatus = async (req, res) => {
             res, statusCode: 200, message: "Status created successfully", data: { status: populatedStatus },
         });
     } catch (error) {
-        console.error(error);
+        console.error("Error in createStatus:", error);
         return response({ res, statusCode: 500, message: "Internal server error" });
     }
 };
@@ -86,7 +87,7 @@ exports.getStatuses = async (req, res) => {
         return response({ res, statusCode: 200, message: "Statuses fetched successfully", data: { statuses } });
     }
     catch (error) {
-        console.error(error);
+        console.error("Error in getStatuses:", error);
         return response({ res, statusCode: 500, message: "Internal server error" });
     }
 }
@@ -111,17 +112,17 @@ exports.viewStatus = async (req, res) => {
             .populate("viewers", "username profilePicture");
 
             if(req.io && req.socketUserMap) {
-                const statusOwnerSocketId = req.socketUserMap.get(status.user._id.toString());
+                // Fixed: status.user is an ObjectId, use toString()
+                const statusOwnerSocketId = req.socketUserMap.get(status.user.toString());
                 if(statusOwnerSocketId) {
                     const viewData = {
                         statusId,
-                        viewerId: userId,
-                        totalviewers: updatedStatus.viewers.length,
                         viewers: updatedStatus.viewers
                     };
-                    req.io.to(statusOwnerSocketId).emit("statusViewed", viewData);
+                    // Fixed: Match frontend event name
+                    req.io.to(statusOwnerSocketId).emit("status_viewed", viewData);
                 }else{
-                    console.log(`Status owner with ID ${status.user._id} is not connected via WebSocket`);
+                    console.log(`Status owner with ID ${status.user} is not connected via WebSocket`);
                 }
             }else{
                 console.log("user already viewed the status");
@@ -130,7 +131,7 @@ exports.viewStatus = async (req, res) => {
         return response({ res, statusCode: 200, message: "Status viewed successfully", data: { status: updatedStatus } });
     }
     catch (error) {
-        console.error(error);
+        console.error("Error in viewStatus:", error);
         return response({ res, statusCode: 500, message: "Internal server error" });
     }
 }
@@ -148,12 +149,13 @@ exports.deleteStatus = async (req, res) => {
             return response({ res, statusCode: 403, message: "You are not the owner of this status" });
         }
 
-        await Status.deleteOne();
+        await Status.deleteOne({ _id: statusId });
 
         if(req.io && req.socketUserMap) {
             for(const[connectionUserId, socketId] of req.socketUserMap) {
                 if(connectionUserId !== userId) {
-                    req.io.to(socketId).emit("statusDeleted", { statusId });
+                    // Fixed: Match frontend event name
+                    req.io.to(socketId).emit("status_deleted", statusId);
                 }
             }
         }
@@ -161,7 +163,7 @@ exports.deleteStatus = async (req, res) => {
         return response({ res, statusCode: 200, message: "Status deleted successfully" });
     }
     catch (error) {
-        console.error(error);
+        console.error("Error in deleteStatus:", error);
         return response({ res, statusCode: 500, message: "Internal server error" });
     }
 }

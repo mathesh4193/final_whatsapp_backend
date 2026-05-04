@@ -48,11 +48,12 @@ app.use((req, res, next) => {
 connectDb();
 
 // ---------------- ROUTES ----------------
+app.get("/api/test", (req, res) => res.send("API is working"));
 app.use("/api/auth", authRoute);
-app.use("/api/chat", chatRoute);
+app.use("/api/chats", chatRoute);
 app.use("/api/status", statusRoute);
 
 // ---------------- START ----------------
 server.listen(PORT, () => {
-  console.log(` Server running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
